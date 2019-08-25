@@ -1,0 +1,8 @@
+ADD &12, 5
+ADD r2, 5
+ADD &13, r2
+ADD &8, 1
+ADD r0, &13
+ADD r3, r0
+ADD &9, &13
+ADD &9, &13
