@@ -1,5 +1,6 @@
 """Models."""
 import re
+import operator
 
 
 class Memory:
@@ -45,10 +46,13 @@ class Memory:
 class Register:
     """register."""
     registers = {}
+    special_registers = {}
     def __init__(self):
         file_registers = open('registers.txt', 'w')
         for i in range(8):
             self.registers['r' + str(i)] = ''
+        self.special_registers['SREG'] = ''
+        self.special_registers['SREG1'] = ''
         file_registers.writelines(self.get_registers())
         file_registers.close()
     
@@ -62,6 +66,8 @@ class Register:
         str_register = []
         for key, value in self.registers.items():
             str_register.append(key + " = " + str(value) + "\n")
+        for key, value in self.special_registers.items():
+            str_register.append(key + " = " + str(value) + "\n")
         return str_register
 
 class ULA:
@@ -70,15 +76,15 @@ class ULA:
     register = Register()
     li = 0
     ci = li + 1
-    exception = Exception("Error: Invalid Command in line %s." % self.li)
+    exception = Exception("Error: Invalid Command in line %s." % li)
 
     def execute(self):
         for self.li in range(len(self.memory.instructions)):
-            
+            result = None
             if self.memory.instructions[self.li]['command'] == 'ADD':
-                self.ADD()
+                result = self.ADD()
             elif self.memory.instructions[self.li]['command'] == 'SUB':
-                pass
+                result = self.SUB()
             elif self.memory.instructions[self.li]['command'] == 'MOV':
                 pass
             elif self.memory.instructions[self.li]['command'] == 'GOTO':
@@ -90,33 +96,53 @@ class ULA:
             else:
                 print("Error: Invalid Command in line %s." % self.li)
                 break
+            if isinstance(result, int):
+                if result == 0:
+                    self.register.special_registers['SREG'] = '1'
+                    self.register.special_registers['SREG1'] = '0'
+                elif result < 0:
+                    self.register.special_registers['SREG'] = '0'
+                    self.register.special_registers['SREG1'] = '1'
+                else:
+                    self.register.special_registers['SREG'] = '0'
+                    self.register.special_registers['SREG1'] = '0'
+
         self.memory.output()
         self.register.output()
-    
+
     def set_ci(self, value = 1):
         self.ci = self.li + value
 
     def ADD(self):
+        return self.action(operator.add)
+
+    def SUB(self):
+        return self.action(operator.sub)
+
+    def action(self, operator):
         if re.match(r'&', self.memory.instructions[self.li]['var1']):
             if self.memory.instructions[self.li]['var1'] in self.memory.data:
                 if re.match(r'&', self.memory.instructions[self.li]['var2']):
                     if self.memory.instructions[self.li]['var2'] in self.memory.data:
                         if isinstance(self.memory.data[self.memory.instructions[self.li]['var1']], str):
-                            return self.memory.data[self.memory.instructions[self.li]['var1']] = 0
-                        return self.memory.data[self.memory.instructions[self.li]['var1']] += self.memory.data[self.memory.instructions[self.li]['var2']]
+                            self.memory.data[self.memory.instructions[self.li]['var1']] = 0
+                        self.memory.data[self.memory.instructions[self.li]['var1']] = operator(self.memory.data[self.memory.instructions[self.li]['var1']], self.memory.data[self.memory.instructions[self.li]['var2']])
+                        return self.memory.data[self.memory.instructions[self.li]['var1']]
                     else:
                         raise self.exception
                 elif re.match(r'r', self.memory.instructions[self.li]['var2']):
                     if self.memory.instructions[self.li]['var2'] in self.register.registers:
                         if isinstance(self.memory.data[self.memory.instructions[self.li]['var1']], str):
-                            return self.memory.data[self.memory.instructions[self.li]['var1']] = 0
-                        return self.memory.data[self.memory.instructions[self.li]['var1']] += self.register.registers[self.memory.instructions[self.li]['var2']]
+                            self.memory.data[self.memory.instructions[self.li]['var1']] = 0
+                        self.memory.data[self.memory.instructions[self.li]['var1']] = operator(self.memory.data[self.memory.instructions[self.li]['var1']], self.register.registers[self.memory.instructions[self.li]['var2']])
+                        return self.memory.data[self.memory.instructions[self.li]['var1']]
                     else:
                         raise self.exception
                 elif int(self.memory.instructions[self.li]['var2']):
                     if isinstance(self.memory.data[self.memory.instructions[self.li]['var1']], str):
-                        return self.memory.data[self.memory.instructions[self.li]['var1']] = 0
-                    return self.memory.data[self.memory.instructions[self.li]['var1']] += int(self.memory.instructions[self.li]['var2'])
+                        self.memory.data[self.memory.instructions[self.li]['var1']] = 0
+                    self.memory.data[self.memory.instructions[self.li]['var1']] = operator(self.memory.data[self.memory.instructions[self.li]['var1']], int(self.memory.instructions[self.li]['var2']))
+                    return self.memory.data[self.memory.instructions[self.li]['var1']]
                 else:
                     raise self.exception
             else:
@@ -126,21 +152,24 @@ class ULA:
                 if re.match(r'&', self.memory.instructions[self.li]['var2']):
                     if self.memory.instructions[self.li]['var2'] in self.memory.data:
                         if isinstance(self.register.registers[self.memory.instructions[self.li]['var1']], str):
-                            return self.register.registers[self.memory.instructions[self.li]['var1']] = 0
-                        return self.register.registers[self.memory.instructions[self.li]['var1']] += self.memory.data[self.memory.instructions[self.li]['var2']]
+                            self.register.registers[self.memory.instructions[self.li]['var1']] = 0
+                        self.register.registers[self.memory.instructions[self.li]['var1']] = operator(self.register.registers[self.memory.instructions[self.li]['var1']], self.memory.data[self.memory.instructions[self.li]['var2']])
+                        return self.register.registers[self.memory.instructions[self.li]['var1']]
                     else:
                         raise self.exception
                 elif re.match(r'r', self.memory.instructions[self.li]['var2']):
                     if self.memory.instructions[self.li]['var2'] in self.register.registers:
                         if isinstance(self.register.registers[self.memory.instructions[self.li]['var1']], str):
-                            return self.register.registers[self.memory.instructions[self.li]['var1']] = 0
-                        return self.register.registers[self.memory.instructions[self.li]['var1']] += self.register.registers[self.memory.instructions[self.li]['var2']]
+                            self.register.registers[self.memory.instructions[self.li]['var1']] = 0
+                        self.register.registers[self.memory.instructions[self.li]['var1']] = operator(self.register.registers[self.memory.instructions[self.li]['var1']], self.register.registers[self.memory.instructions[self.li]['var2']])
+                        return self.register.registers[self.memory.instructions[self.li]['var1']]
                     else:
                         raise self.exception
                 elif int(self.memory.instructions[self.li]['var2']):
                     if isinstance(self.register.registers[self.memory.instructions[self.li]['var1']], str):
-                        return self.register.registers[self.memory.instructions[self.li]['var1']] = 0
-                    return self.register.registers[self.memory.instructions[self.li]['var1']] += int(self.memory.instructions[self.li]['var2'])
+                        self.register.registers[self.memory.instructions[self.li]['var1']] = 0
+                    self.register.registers[self.memory.instructions[self.li]['var1']] = operator(self.register.registers[self.memory.instructions[self.li]['var1']], int(self.memory.instructions[self.li]['var2']))
+                    return self.register.registers[self.memory.instructions[self.li]['var1']]
                 else:
                     raise self.exception
             else:
