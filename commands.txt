@@ -4,5 +4,12 @@ ADD &13, r2
 SUB &8, 1
 ADD r0, &13
 ADD r3, r0
+ADD r4, 100
 ADD &9, &13
 ADD &9, &13
+MOV r6, &9
+ADD &8, 1100
+SUB r4, 1
+SBRC r4
+GOTO 10
+HALF
